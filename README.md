@@ -49,3 +49,7 @@ Edit `~/.claude/gradient-statusline.sh`:
 - `BAR_W=10` — bar width in cells (1 cell per 10%).
 - `m=170` in `grad_rgb` — gradient brightness ceiling (lower = darker).
 - empty-cell color `38;2;60;60;60`.
+
+> Note: `~/.claude/gradient-statusline.sh` is a copy and gets overwritten on
+> reinstall. To persist changes, edit the source `scripts/statusline.sh` and
+> re-run `/install-statusline`.
