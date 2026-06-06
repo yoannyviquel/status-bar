@@ -140,7 +140,7 @@ function segmentFor(type, d) {
 function gauge(label, pct) {
   if (!has(pct)) return null;
   const p = Math.round(pct);
-  return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${label} ${p}%` };
+  return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${p}% ${label}` };
 }
 
 function dirSegment(d) {
