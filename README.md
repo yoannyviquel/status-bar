@@ -73,6 +73,17 @@ refresh):
 
 Running with no argument prints the current configuration.
 
+## Tests
+
+End-to-end tests (zero dependency — just `node`) cover element on/off
+combinations, the intermediate separators (black band vs merged dir/branch),
+rounded caps at both ends, right-align via `gap`, and graceful drops
+(missing data, non-git, legacy config):
+
+```
+node tests/e2e.js      # or: npm test
+```
+
 ## Uninstall
 
 Remove the `statusLine` block from `~/.claude/settings.json` (or restore
