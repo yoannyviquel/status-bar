@@ -44,9 +44,8 @@ const ARROW = '→'; // "→" reset prefix
 const LABELS = { ctx: 'ctx', fiveHour: ARROW + '5h', sevenDay: ARROW + '7j' };
 // Gauge text color (on the completion-colored background).
 const GAUGE_FG = [255, 255, 255];
-// Dark chevron between two gauge segments (their backgrounds are similar greens,
-// so a segment-colored chevron would be invisible — this separates them).
-const DARK_SEP = [30, 30, 30];
+// Dark band inserted between every segment for a clean, homogeneous separator.
+const DARK_SEP = [12, 12, 12];
 // dir / branch: light backgrounds, dark text.
 const SEG = {
   dir: { bg: [220, 220, 220], fg: [40, 40, 40] },
@@ -172,16 +171,11 @@ function powerline(segs) {
     const s = segs[i];
     out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
     if (i < segs.length - 1) {
-      const next = segs[i + 1];
-      if (s.kind === 'gauge' && next.kind === 'gauge') {
-        // Same-color greens: insert a black band so each side keeps its color.
-        // current color points into black, then black points into next color.
-        out += bg(DARK_SEP) + fg(s.bg) + GLYPH.sep;
-        out += bg(next.bg) + fg(DARK_SEP) + GLYPH.sep;
-      } else {
-        // Different backgrounds: the usual filled chevron of the current bg.
-        out += bg(next.bg) + fg(s.bg) + GLYPH.sep;
-      }
+      // Black band between every segment (homogeneous separator): the current
+      // color points into black, then black points into the next color — both
+      // sides keep their own color.
+      out += bg(DARK_SEP) + fg(s.bg) + GLYPH.sep;
+      out += bg(segs[i + 1].bg) + fg(DARK_SEP) + GLYPH.sep;
     }
   }
   out += DEFBG + fg(segs[segs.length - 1].bg) + GLYPH.rightCap + RESET;
