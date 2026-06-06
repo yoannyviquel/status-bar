@@ -36,8 +36,7 @@ const GLYPH = {
   folder: cp(0xf07b),    // nf-fa-folder      dir segment icon
   branch: cp(0xe0a0),    // nf-pl-branch      git branch icon
   leftCap: cp(0xe0b6),   // nf-pl-left_soft   rounded left cap (strip opening)
-  sep: cp(0xe0b0),       // nf-pl-right_hard  filled chevron (different-color segments)
-  sepThin: cp(0xe0b1),   // nf-pl-right_soft  thin chevron (same-color segments)
+  sep: cp(0xe0b0),       // nf-pl-right_hard  filled chevron between segments
   rightCap: cp(0xe0b4),  // nf-pl-right_soft  rounded right cap (strip closing)
 };
 const ARROW = '→'; // "→" reset prefix
@@ -175,8 +174,10 @@ function powerline(segs) {
     if (i < segs.length - 1) {
       const next = segs[i + 1];
       if (s.kind === 'gauge' && next.kind === 'gauge') {
-        // Same-color greens: a thin dark chevron divides them cleanly.
-        out += bg(next.bg) + fg(DARK_SEP) + GLYPH.sepThin;
+        // Same-color greens: insert a black band so each side keeps its color.
+        // current color points into black, then black points into next color.
+        out += bg(DARK_SEP) + fg(s.bg) + GLYPH.sep;
+        out += bg(next.bg) + fg(DARK_SEP) + GLYPH.sep;
       } else {
         // Different backgrounds: the usual filled chevron of the current bg.
         out += bg(next.bg) + fg(s.bg) + GLYPH.sep;
