@@ -37,7 +37,8 @@ const GLYPH = {
   branch: cp(0xe0a0),    // nf-pl-branch      git branch icon
   leftCap: cp(0xe0b6),   // nf-pl-left_soft   rounded left cap (strip opening)
   sep: cp(0xe0b0),       // nf-pl-right_hard  filled chevron between segments
-  rightCap: cp(0xe0b4),  // nf-pl-right_soft  rounded right cap (strip closing)
+  rightCap: cp(0xe0b4),  // nf-pl-right_soft  filled rounded right cap
+  rightThin: cp(0xe0b5), // nf-pl-right_soft_thin  outline rounded right cap
 };
 const ARROW = '→'; // "→" reset prefix
 // Fallback labels (used when no reset timestamp is provided).
@@ -171,11 +172,11 @@ function powerline(segs) {
     const s = segs[i];
     out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
     if (i < segs.length - 1) {
-      // Interlocking rounded separator: the current segment rounds off into
-      // black (colored right cap on black), then a black rounded left cap sits
-      // on the next segment's bg — minimal black, caps nest into each other.
-      out += bg(DARK_SEP) + fg(s.bg) + GLYPH.rightCap;
-      out += bg(segs[i + 1].bg) + fg(DARK_SEP) + GLYPH.leftCap;
+      // Interlocking rounded separator: E0B4 (current) + E0B5 (black) + E0B4 (next).
+      const nb = segs[i + 1].bg;
+      out += bg(DARK_SEP) + fg(s.bg) + GLYPH.rightCap;    // current solid round into black
+      out += bg(DARK_SEP) + fg(nb) + GLYPH.rightThin;     // next-colored thin arc on black
+      out += bg(nb) + fg(DARK_SEP) + GLYPH.rightCap;      // black round, next bg behind
     }
   }
   out += DEFBG + fg(segs[segs.length - 1].bg) + GLYPH.rightCap + RESET;
