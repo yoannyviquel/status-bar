@@ -16,6 +16,8 @@ const configPath = path.join(claudeDir, 'gradient-statusline.config.json');
 const srcScript = path.join(__dirname, 'statusline.js');
 const destScript = path.join(claudeDir, 'gradient-statusline.js');
 
+const MODES = ['full', 'compact', 'ultra'];
+
 function fail(msg) { console.error('✗ ' + msg); process.exit(1); }
 
 // Is a given statusLine command one we installed (current .js or legacy .sh)?
@@ -44,19 +46,25 @@ if (fs.existsSync(settingsPath)) {
 const prev = settings.statusLine;
 const prevCmd = prev && typeof prev === 'object' ? prev.command : (typeof prev === 'string' ? prev : '');
 
+// Read any existing config to preserve fields across re-installs.
+let prevConfig = {};
+try { prevConfig = JSON.parse(fs.readFileSync(configPath, 'utf8')) || {}; } catch { /* none */ }
+
 let baseCommand = '';
 if (isOurs(prevCmd)) {
   // Re-install over ourselves: keep whatever base we captured previously.
-  try {
-    const c = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    if (c && typeof c.baseCommand === 'string') baseCommand = c.baseCommand;
-  } catch { /* no prior config */ }
+  if (typeof prevConfig.baseCommand === 'string') baseCommand = prevConfig.baseCommand;
 } else if (prevCmd) {
   // A real, foreign status line — preserve it as the prefix.
   baseCommand = prevCmd;
 }
 
-fs.writeFileSync(configPath, JSON.stringify({ baseCommand }, null, 2) + '\n', 'utf8');
+// Mode: CLI arg wins, else keep existing, else default to full.
+const argMode = (process.argv[2] || '').trim().toLowerCase();
+if (argMode && !MODES.includes(argMode)) fail(`unknown mode "${argMode}". Choose: ${MODES.join(', ')}`);
+const mode = argMode || (MODES.includes(prevConfig.mode) ? prevConfig.mode : 'full');
+
+fs.writeFileSync(configPath, JSON.stringify({ baseCommand, mode }, null, 2) + '\n', 'utf8');
 
 settings.statusLine = { type: 'command', command: `node "${destScript.replace(/\\/g, '\\\\')}"` };
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
@@ -64,7 +72,8 @@ fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8')
 console.log('✓ Consumption-bar status line installed.');
 console.log('  script : ' + destScript);
 console.log('  config : ' + configPath);
+console.log('  mode   : ' + mode);
 console.log('  settings: ' + settingsPath + (fs.existsSync(settingsPath + '.bak') ? ' (.bak backup created)' : ''));
 if (baseCommand) console.log('  base status line preserved: ' + JSON.stringify(baseCommand));
-else console.log('  no prior status line — showing bars only.');
+else console.log('  no prior status line — showing indicators only.');
 console.log('\nRestart Claude Code (or open a new session) to see it.');

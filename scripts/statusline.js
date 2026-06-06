@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 // Consumption-bar status line — ADDITIVE wrapper.
 //
-// This renders ONLY the consumption bars (context window + rate-limit windows)
+// Renders ONLY the consumption indicators (context window + rate-limit windows)
 // and appends them to whatever status line was already configured. It never
 // replaces an existing custom status line: install.js captures the previous
 // `statusLine` command into gradient-statusline.config.json, and this wrapper
-// runs it (piping the same stdin JSON through) to produce the prefix, then
-// appends the bars. If no prior status line existed, only the bars are shown.
+// runs it (piping the same stdin JSON through) for the prefix, then appends the
+// indicators. If no prior status line existed, only the indicators are shown.
+//
+// Render mode is read from the config file on every refresh, so it can be
+// changed at any time (set-mode.js) without restarting Claude Code:
+//   full    : 10-cell gradient bars (1 cell / 10%)
+//   compact : 5-cell gradient bars  (1 cell / 20%)
+//   ultra   : the percentage inside a gradient-filled box, no bars
 //
 // Single short-lived node process. The only extra spawn is the user's own
 // previous status-line command (if any) — its cost is theirs, not ours.
@@ -16,43 +22,47 @@ const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 
+const MODES = ['full', 'compact', 'ultra'];
+
 let raw = '';
 process.stdin.on('data', (c) => (raw += c));
 process.stdin.on('end', () => {
   try { process.stdout.write(render(raw)); }
-  catch { process.stdout.write(bars(safeParse(raw))); }
+  catch { process.stdout.write(bars(safeParse(raw), 'full')); }
 });
 
 function safeParse(r) { try { return JSON.parse(r); } catch { return {}; } }
 function has(v) { return v !== undefined && v !== null && v !== ''; }
 
-// Previous status-line command captured at install time (empty if none).
-function loadBaseCommand() {
+function loadConfig() {
   try {
     const p = path.join(os.homedir(), '.claude', 'gradient-statusline.config.json');
-    const c = JSON.parse(fs.readFileSync(p, 'utf8'));
-    return c && typeof c.baseCommand === 'string' && c.baseCommand.trim() ? c.baseCommand : '';
-  } catch { return ''; }
+    const c = JSON.parse(fs.readFileSync(p, 'utf8')) || {};
+    return {
+      baseCommand: typeof c.baseCommand === 'string' && c.baseCommand.trim() ? c.baseCommand : '',
+      mode: MODES.includes(c.mode) ? c.mode : 'full',
+    };
+  } catch { return { baseCommand: '', mode: 'full' }; }
 }
 
 function render(raw) {
+  const { baseCommand, mode } = loadConfig();
   let prefix = '';
-  const base = loadBaseCommand();
-  if (base) {
+  if (baseCommand) {
     try {
       prefix = cp
-        .execSync(base, { input: raw, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
+        .execSync(baseCommand, { input: raw, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
         .toString()
         .replace(/\s+$/, '');
     } catch { prefix = ''; }
   }
-  const b = bars(safeParse(raw));
+  const b = bars(safeParse(raw), mode);
   if (prefix && b) return prefix + ' ' + b; // space-join, matches CC layout
   return prefix || b;
 }
 
-// Build only the consumption bars: ctx | →5h | →7d
-function bars(d) {
+// Build only the consumption indicators: ctx | →5h | →7d
+function bars(d, mode) {
   const usedPct = d.context_window?.used_percentage;
   const fivePct = d.rate_limits?.five_hour?.used_percentage;
   const fiveReset = d.rate_limits?.five_hour?.resets_at;
@@ -60,16 +70,23 @@ function bars(d) {
   const sevenReset = d.rate_limits?.seven_day?.resets_at;
 
   const usage = [];
-  if (has(usedPct)) usage.push(`ctx:${makeBar(Math.round(usedPct))}`);
+  if (has(usedPct)) usage.push(`ctx:${cell(Math.round(usedPct), mode)}`);
   if (has(fivePct)) {
     const r = fmtReset(fiveReset, true);
-    usage.push(`${r ? '→' + r : ''}:${makeBar(Math.round(fivePct))}`);
+    usage.push(`${r ? '→' + r : ''}:${cell(Math.round(fivePct), mode)}`);
   }
   if (has(sevenPct)) {
     const r = fmtReset(sevenReset, false);
-    usage.push(`${r ? '→' + r : ''}:${makeBar(Math.round(sevenPct))}`);
+    usage.push(`${r ? '→' + r : ''}:${cell(Math.round(sevenPct), mode)}`);
   }
   return usage.join(' | ');
+}
+
+// Render one indicator for the given mode.
+function cell(pct, mode) {
+  if (mode === 'ultra') return makeBox(pct);
+  if (mode === 'compact') return makeBar(pct, 5);
+  return makeBar(pct, 10);
 }
 
 // Gradient RGB for fraction 0..1: green -> yellow -> red. Returns "R;G;B".
@@ -85,8 +102,8 @@ function gradRgb(f) {
   return `${r};${g};0`;
 }
 
-// 10-cell gradient bar (green->red), 1 cell per 10%. Empty cells dim gray.
-function makeBar(pct, width = 10) {
+// Gradient bar (green->red), 1 cell per (100/width)%. Empty cells dim gray.
+function makeBar(pct, width) {
   let filled = Math.trunc((pct * width) / 100);
   if (filled > width) filled = width;
   const denom = Math.max(width - 1, 1);
@@ -94,6 +111,13 @@ function makeBar(pct, width = 10) {
   for (let i = 0; i < filled; i++) bar += `\x1b[38;2;${gradRgb(i / denom)}m█`;
   for (let i = filled; i < width; i++) bar += `\x1b[38;2;60;60;60m░`;
   return bar + '\x1b[0m';
+}
+
+// Percentage inside a gradient-filled box (white text on gradient background).
+function makeBox(pct) {
+  const bg = gradRgb(pct / 100);
+  const label = `${pct}`.padStart(3, ' ');
+  return `\x1b[48;2;${bg};38;2;255;255;255m ${label}% \x1b[0m`;
 }
 
 // Format a reset timestamp (unix seconds) as "10pm" or "Apr18".
