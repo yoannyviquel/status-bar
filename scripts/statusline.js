@@ -171,11 +171,11 @@ function powerline(segs) {
     const s = segs[i];
     out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
     if (i < segs.length - 1) {
-      // Black band between every segment (homogeneous separator): the current
-      // color points into black, then black points into the next color — both
-      // sides keep their own color.
-      out += bg(DARK_SEP) + fg(s.bg) + GLYPH.sep;
-      out += bg(segs[i + 1].bg) + fg(DARK_SEP) + GLYPH.sep;
+      // Interlocking rounded separator over a thin black gap: the current
+      // segment rounds off into black, then the next emerges rounded — both
+      // sides keep their own color, less black than slanted chevrons.
+      out += bg(DARK_SEP) + fg(s.bg) + GLYPH.rightCap;
+      out += bg(DARK_SEP) + fg(segs[i + 1].bg) + GLYPH.leftCap;
     }
   }
   out += DEFBG + fg(segs[segs.length - 1].bg) + GLYPH.rightCap + RESET;
