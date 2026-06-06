@@ -1,7 +1,7 @@
 ---
 description: Install the consumption status line (prompts for the render mode)
 allowed-tools: Bash(node:*)
-argument-hint: "[full|compact|ultra]"
+argument-hint: "[full|medium|compact]"
 ---
 
 Install the consumption status line: copy the script into `~/.claude/` and wire
@@ -15,12 +15,12 @@ indicators — it never discards the user's existing line.
 Steps:
 
 1. **Determine the render mode.**
-   - If `$ARGUMENTS` already contains `full`, `compact`, or `ultra`, use that — skip to step 2.
+   - If `$ARGUMENTS` already contains `full`, `medium`, or `compact`, use that — skip to step 2.
    - Otherwise ask the user with **AskUserQuestion** (header `Mode`, question
      "Which status-line render mode do you want?") with these options:
      - **full** — 10-cell gradient bars, 1 cell / 10% (e.g. `ctx:██░░░░░░░░ | →1pm:███░░░░░░░ | →Jun12:█░░░░░░░░░`)
-     - **compact** — 5-cell gradient bars, 1 cell / 20%
-     - **ultra** — tight % on a gradient background, no bars (e.g. `ctx34%→1am62%→Jun1118%`)
+     - **medium** — 5-cell gradient bars, 1 cell / 20%
+     - **compact** — tight % on a gradient background, no bars (e.g. `ctx34%→1am62%→Jun1118%`)
 
 2. **Run the installer** with the chosen mode (report its output to the user):
 

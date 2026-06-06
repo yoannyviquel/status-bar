@@ -11,8 +11,8 @@
 // Render mode is read from the config file on every refresh, so it can be
 // changed at any time (set-mode.js) without restarting Claude Code:
 //   full    : 10-cell gradient bars (1 cell / 10%)
-//   compact : 5-cell gradient bars  (1 cell / 20%)
-//   ultra   : tight "label+%" with the % on a gradient background, no bars
+//   medium  : 5-cell gradient bars  (1 cell / 20%)
+//   compact : tight "label+%" with the % on a gradient background, no bars
 //             e.g. ctx34%→1am62%→Jun1118%
 //
 // Single short-lived node process. The only extra spawn is the user's own
@@ -23,7 +23,7 @@ const os = require('os');
 const path = require('path');
 const cp = require('child_process');
 
-const MODES = ['full', 'compact', 'ultra'];
+const MODES = ['full', 'medium', 'compact'];
 
 let raw = '';
 process.stdin.on('data', (c) => (raw += c));
@@ -81,12 +81,12 @@ function bars(d, mode) {
     items.push({ label: r ? '→' + r : '', pct: Math.round(sevenPct) });
   }
 
-  if (mode === 'ultra') {
+  if (mode === 'compact') {
     // tight: label glued to a gradient-backed "NN%", no separators
     // (the "→" reset prefixes act as visual delimiters)
     return items.map((it) => `${it.label}${makeBox(it.pct)}`).join('');
   }
-  const width = mode === 'compact' ? 5 : 10;
+  const width = mode === 'medium' ? 5 : 10;
   return items.map((it) => `${it.label}:${makeBar(it.pct, width)}`).join(' | ');
 }
 

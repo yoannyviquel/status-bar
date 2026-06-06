@@ -16,7 +16,7 @@ const configPath = path.join(claudeDir, 'gradient-statusline.config.json');
 const srcScript = path.join(__dirname, 'statusline.js');
 const destScript = path.join(claudeDir, 'gradient-statusline.js');
 
-const MODES = ['full', 'compact', 'ultra'];
+const MODES = ['full', 'medium', 'compact'];
 
 function fail(msg) { console.error('✗ ' + msg); process.exit(1); }
 

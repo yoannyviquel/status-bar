@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Change the consumption status-line render mode at any time.
 //
-// Usage: node set-mode.js [full|compact|ultra]
+// Usage: node set-mode.js [full|medium|compact]
 //   no arg  -> print the current mode and the available modes
 //
 // Writes `mode` into ~/.claude/gradient-statusline.config.json (preserving
@@ -11,11 +11,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const MODES = ['full', 'compact', 'ultra'];
+const MODES = ['full', 'medium', 'compact'];
 const DESC = {
   full: '10-cell gradient bars (1 cell / 10%)',
-  compact: '5-cell gradient bars (1 cell / 20%)',
-  ultra: 'percentage inside a gradient box (no bars)',
+  medium: '5-cell gradient bars (1 cell / 20%)',
+  compact: 'percentage inside a gradient box (no bars)',
 };
 
 const configPath = path.join(os.homedir(), '.claude', 'gradient-statusline.config.json');

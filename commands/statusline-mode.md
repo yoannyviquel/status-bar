@@ -1,14 +1,14 @@
 ---
-description: Change the consumption status-line render mode (full / compact / ultra)
+description: Change the consumption status-line render mode (full / medium / compact)
 allowed-tools: Bash(node:*)
-argument-hint: "[full|compact|ultra]"
+argument-hint: "[full|medium|compact]"
 ---
 
 Change the render mode of the consumption status line. Modes:
 
 - `full` — 10-cell gradient bars (1 cell per 10%)
-- `compact` — 5-cell gradient bars (1 cell per 20%)
-- `ultra` — the percentage inside a gradient-filled box (no bars)
+- `medium` — 5-cell gradient bars (1 cell per 20%)
+- `compact` — the percentage inside a gradient-filled box (no bars)
 
 Run exactly this command and report its output to the user:
 
