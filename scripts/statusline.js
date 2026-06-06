@@ -172,10 +172,9 @@ function powerline(segs) {
     const s = segs[i];
     out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
     if (i < segs.length - 1) {
-      // Interlocking rounded separator: E0B4 (current) + E0B5 (black) + E0B4 (next).
+      // Interlocking rounded separator: E0B4 (current) + E0B4 (black on next bg).
       const nb = segs[i + 1].bg;
       out += bg(DARK_SEP) + fg(s.bg) + GLYPH.rightCap;    // current solid round into black
-      out += bg(DARK_SEP) + fg(nb) + GLYPH.rightThin;     // next-colored thin arc on black
       out += bg(nb) + fg(DARK_SEP) + GLYPH.rightCap;      // black round, next bg behind
     }
   }
