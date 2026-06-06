@@ -42,6 +42,8 @@ const GLYPH = {
   sep: cp(0xe0b0),       // nf-pl-right_hard  filled chevron between segments
   rightCap: cp(0xe0b4),  // nf-pl-right_soft  filled rounded right cap
   rightThin: cp(0xe0b5), // nf-pl-right_soft_thin  outline rounded right cap
+  ctx: cp(0xf1c0),       // nf-fa-database      context gauge icon
+  quota: cp(0xf0e4),     // nf-fa-tachometer    quota gauge icon
 };
 const ARROW = '→'; // "→" reset prefix
 // Fallback labels (used when no reset timestamp is provided).
@@ -148,27 +150,28 @@ function visW(s) {
 }
 
 function segmentFor(type, d) {
-  if (type === 'ctx') return gauge(LABELS.ctx, d.context_window?.used_percentage);
+  if (type === 'ctx') return gauge(GLYPH.ctx, '', d.context_window?.used_percentage);
   if (type === '5h') {
     const w = d.rate_limits?.five_hour;
     const r = fmtReset(w?.resets_at, true);
-    return gauge(r ? ARROW + r : LABELS.fiveHour, w?.used_percentage);
+    return gauge(GLYPH.quota, r ? ARROW + r : LABELS.fiveHour, w?.used_percentage);
   }
   if (type === '7d') {
     const w = d.rate_limits?.seven_day;
     const r = fmtReset(w?.resets_at, false);
-    return gauge(r ? ARROW + r : LABELS.sevenDay, w?.used_percentage);
+    return gauge(GLYPH.quota, r ? ARROW + r : LABELS.sevenDay, w?.used_percentage);
   }
   if (type === 'dir') return dirSegment(d);
   if (type === 'branch') return branchSegment(d);
   return null;
 }
 
-// A gauge segment: background colored by the usage %, text "<label> NN%".
-function gauge(label, pct) {
+// A gauge segment: glyph, then "NN%" (and an optional label), on a bg colored by the %.
+function gauge(glyph, label, pct) {
   if (!has(pct)) return null;
   const p = Math.round(pct);
-  return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${p}% ${label}` };
+  const body = label ? `${p}% ${label}` : `${p}%`;
+  return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${glyph} ${body}` };
 }
 
 function dirSegment(d) {
