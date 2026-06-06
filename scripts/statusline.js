@@ -12,7 +12,8 @@
 // changed at any time (set-mode.js) without restarting Claude Code:
 //   full    : 10-cell gradient bars (1 cell / 10%)
 //   compact : 5-cell gradient bars  (1 cell / 20%)
-//   ultra   : the percentage inside a gradient-filled box, no bars
+//   ultra   : tight "label+%" with the % on a gradient background, no bars
+//             e.g. ctx34%|→1am62%|→Jun1118%
 //
 // Single short-lived node process. The only extra spawn is the user's own
 // previous status-line command (if any) — its cost is theirs, not ours.
@@ -69,24 +70,23 @@ function bars(d, mode) {
   const sevenPct = d.rate_limits?.seven_day?.used_percentage;
   const sevenReset = d.rate_limits?.seven_day?.resets_at;
 
-  const usage = [];
-  if (has(usedPct)) usage.push(`ctx:${cell(Math.round(usedPct), mode)}`);
+  const items = [];
+  if (has(usedPct)) items.push({ label: 'ctx', pct: Math.round(usedPct) });
   if (has(fivePct)) {
     const r = fmtReset(fiveReset, true);
-    usage.push(`${r ? '→' + r : ''}:${cell(Math.round(fivePct), mode)}`);
+    items.push({ label: r ? '→' + r : '', pct: Math.round(fivePct) });
   }
   if (has(sevenPct)) {
     const r = fmtReset(sevenReset, false);
-    usage.push(`${r ? '→' + r : ''}:${cell(Math.round(sevenPct), mode)}`);
+    items.push({ label: r ? '→' + r : '', pct: Math.round(sevenPct) });
   }
-  return usage.join(' | ');
-}
 
-// Render one indicator for the given mode.
-function cell(pct, mode) {
-  if (mode === 'ultra') return makeBox(pct);
-  if (mode === 'compact') return makeBar(pct, 5);
-  return makeBar(pct, 10);
+  if (mode === 'ultra') {
+    // tight: label glued to a gradient-backed "NN%", joined by bare "|"
+    return items.map((it) => `${it.label}${makeBox(it.pct)}`).join('|');
+  }
+  const width = mode === 'compact' ? 5 : 10;
+  return items.map((it) => `${it.label}:${makeBar(it.pct, width)}`).join(' | ');
 }
 
 // Gradient RGB for fraction 0..1: green -> yellow -> red. Returns "R;G;B".
@@ -113,11 +113,10 @@ function makeBar(pct, width) {
   return bar + '\x1b[0m';
 }
 
-// Percentage inside a gradient-filled box (white text on gradient background).
+// Tight percentage on a gradient background, white text — e.g. "34%".
 function makeBox(pct) {
   const bg = gradRgb(pct / 100);
-  const label = `${pct}`.padStart(3, ' ');
-  return `\x1b[48;2;${bg};38;2;255;255;255m ${label}% \x1b[0m`;
+  return `\x1b[48;2;${bg};38;2;255;255;255m${pct}%\x1b[0m`;
 }
 
 // Format a reset timestamp (unix seconds) as "10pm" or "Apr18".
