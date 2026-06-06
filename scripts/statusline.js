@@ -44,6 +44,9 @@ const ARROW = '→'; // "→" reset prefix
 const LABELS = { ctx: 'ctx', fiveHour: ARROW + '5h', sevenDay: ARROW + '7j' };
 // Gauge text color (on the completion-colored background).
 const GAUGE_FG = [255, 255, 255];
+// Dark chevron between two gauge segments (their backgrounds are similar greens,
+// so a segment-colored chevron would be invisible — this separates them).
+const DARK_SEP = [30, 30, 30];
 // dir / branch: light backgrounds, dark text.
 const SEG = {
   dir: { bg: [220, 220, 220], fg: [40, 40, 40] },
@@ -138,7 +141,7 @@ function segmentFor(type, d) {
 function gauge(label, pct) {
   if (!has(pct)) return null;
   const p = Math.round(pct);
-  return { bg: grad(p / 100), fg: GAUGE_FG, text: `${label} ${p}%` };
+  return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${label} ${p}%` };
 }
 
 function dirSegment(d) {
@@ -169,8 +172,11 @@ function powerline(segs) {
     const s = segs[i];
     out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
     if (i < segs.length - 1) {
-      // chevron of the current bg, sitting on the next segment's bg
-      out += bg(segs[i + 1].bg) + fg(s.bg) + GLYPH.sep;
+      const next = segs[i + 1];
+      // Between two gauges use a dark chevron (their greens would blend);
+      // otherwise the usual current-bg chevron on the next segment's bg.
+      const chevFg = s.kind === 'gauge' && next.kind === 'gauge' ? DARK_SEP : s.bg;
+      out += bg(next.bg) + fg(chevFg) + GLYPH.sep;
     }
   }
   out += DEFBG + fg(segs[segs.length - 1].bg) + GLYPH.rightCap + RESET;
