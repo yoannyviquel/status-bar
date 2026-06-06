@@ -1,7 +1,7 @@
 {
   "name": "consumption-status-bar",
-  "version": "1.0.1",
-  "description": "Status line with green-to-red gradient progress bars for context window and 5h / 7d rate-limit quotas. Run /install-statusline once to enable.",
+  "version": "1.0.2",
+  "description": "Additive status line with green-to-red gradient indicators for context window and 5h / 7d rate-limit quotas. Single-process (node only). Modes full / compact / ultra, switchable via /statusline-mode. Run /install-statusline once to enable.",
   "author": {
     "name": "Yoann Yviquel"
   }
