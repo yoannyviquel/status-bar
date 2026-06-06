@@ -1,5 +1,5 @@
 {
-  "name": "consumption-status-bar",
+  "name": "status-bar",
   "version": "1.0.3",
   "description": "Additive status line with green-to-red gradient indicators for context window and 5h / 7d rate-limit quotas. Single-process (node only). Modes full / medium / compact, switchable via /statusline-mode. Run /install-statusline once to enable.",
   "author": {

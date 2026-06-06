@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Installs the consumption-bar status line into the user's ~/.claude/settings.json.
+// Installs the status line into the user's ~/.claude/settings.json.
 //
 // ADDITIVE: this never discards an existing custom status line. If one is
 // already configured (and it isn't ours), its command is captured into
 // gradient-statusline.config.json; the deployed wrapper then runs it for the
-// prefix and appends the consumption bars. If nothing was configured, only the
+// prefix and appends the bars. If nothing was configured, only the
 // bars are shown.
 const fs = require('fs');
 const os = require('os');
@@ -69,7 +69,7 @@ fs.writeFileSync(configPath, JSON.stringify({ baseCommand, mode }, null, 2) + '\
 settings.statusLine = { type: 'command', command: `node "${destScript.replace(/\\/g, '\\\\')}"` };
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
 
-console.log('✓ Consumption-bar status line installed.');
+console.log('✓ Status line installed.');
 console.log('  script : ' + destScript);
 console.log('  config : ' + configPath);
 console.log('  mode   : ' + mode);

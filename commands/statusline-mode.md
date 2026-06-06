@@ -1,10 +1,10 @@
 ---
-description: Change the consumption status-line render mode (full / medium / compact)
+description: Change the status-line render mode (full / medium / compact)
 allowed-tools: Bash(node:*)
 argument-hint: "[full|medium|compact]"
 ---
 
-Change the render mode of the consumption status line. Modes:
+Change the render mode of the status line. Modes:
 
 - `full` — 10-cell gradient bars (1 cell per 10%)
 - `medium` — 5-cell gradient bars (1 cell per 20%)

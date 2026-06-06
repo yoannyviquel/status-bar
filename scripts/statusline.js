@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Consumption-bar status line — ADDITIVE wrapper.
+// Status line — ADDITIVE wrapper.
 //
-// Renders ONLY the consumption indicators (context window + rate-limit windows)
+// Renders ONLY the indicators (context window + rate-limit windows)
 // and appends them to whatever status line was already configured. It never
 // replaces an existing custom status line: install.js captures the previous
 // `statusLine` command into gradient-statusline.config.json, and this wrapper
@@ -62,7 +62,7 @@ function render(raw) {
   return prefix || b;
 }
 
-// Build only the consumption indicators: ctx | →5h | →7d
+// Build only the indicators: ctx | →5h | →7d
 function bars(d, mode) {
   const usedPct = d.context_window?.used_percentage;
   const fivePct = d.rate_limits?.five_hour?.used_percentage;

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Change the consumption status-line render mode at any time.
+// Change the status-line render mode at any time.
 //
 // Usage: node set-mode.js [full|medium|compact]
 //   no arg  -> print the current mode and the available modes

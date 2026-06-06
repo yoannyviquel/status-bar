@@ -1,14 +1,14 @@
 ---
-description: Install the consumption status line (prompts for the render mode)
+description: Install the status line (prompts for the render mode)
 allowed-tools: Bash(node:*)
 argument-hint: "[full|medium|compact]"
 ---
 
-Install the consumption status line: copy the script into `~/.claude/` and wire
+Install the status line: copy the script into `~/.claude/` and wire
 `statusLine` in the user `settings.json` (an existing config is backed up to
 `settings.json.bak` first).
 
-The installer is **additive**: it renders only the consumption indicators and,
+The installer is **additive**: it renders only the indicators and,
 if a status line was already configured, runs it for the prefix and appends the
 indicators — it never discards the user's existing line.
 
