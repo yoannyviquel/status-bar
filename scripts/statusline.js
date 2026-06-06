@@ -27,8 +27,9 @@ const path = require('path');
 const proc = require('child_process');
 
 const ALL_TYPES = ['ctx', '5h', '7d', 'dir', 'branch', 'gap'];
-// Right-edge margin (cells) left free when right-aligning after a `gap`.
-const RIGHT_MARGIN = 1;
+// Columns Claude Code reserves around the status line (~2 left indent + ~2 right);
+// deduct so the right strip lands just inside the edge.
+const EDGE_RESERVE = 4;
 
 // --- Powerline look (Nerd Font). Tweak freely. -----------------------------
 // Glyphs built from code points so the source stays pure-ASCII (some editors
@@ -127,7 +128,7 @@ function indicators(d, elements) {
   const right = rSegs.length ? powerline(rSegs) : '';
   if (!right) return left;
   const cols = parseInt(process.env.COLUMNS || '', 10);
-  const pad = cols ? cols - visW(left) - visW(right) - RIGHT_MARGIN : 0;
+  const pad = cols ? cols - visW(left) - visW(right) - EDGE_RESERVE : 0;
   if (pad < 1) return left ? left + '  ' + right : right;
   return left + ' '.repeat(pad) + right;
 }
@@ -174,14 +175,14 @@ function dirSegment(d) {
   const cwd = d.workspace?.current_dir || d.cwd || process.cwd();
   if (!has(cwd)) return null;
   const name = path.basename(String(cwd).replace(/[\\/]+$/, '')) || String(cwd);
-  return { ...SEG.dir, text: `${GLYPH.folder} ${name}` };
+  return { ...SEG.dir, group: 'loc', text: `${GLYPH.folder} ${name}` };
 }
 
 function branchSegment(d) {
   const cwd = d.workspace?.current_dir || d.cwd || process.cwd();
   const br = gitBranch(cwd);
   if (!br) return null;
-  return { ...SEG.branch, text: `${GLYPH.branch} ${br}` };
+  return { ...SEG.branch, group: 'loc', text: `${GLYPH.branch} ${br}` };
 }
 
 // --- ANSI / powerline rendering --------------------------------------------
@@ -198,11 +199,15 @@ function powerline(segs) {
     const s = segs[i];
     out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
     if (i < segs.length - 1) {
-      // Black band between segments: current color points into black, then
-      // black points into the next color — both sides keep their own color.
-      const nb = segs[i + 1].bg;
-      out += bg(DARK_SEP) + fg(s.bg) + GLYPH.sep;   // current chevron into black
-      out += bg(nb) + fg(DARK_SEP) + GLYPH.sep;     // black chevron into next
+      const next = segs[i + 1];
+      if (s.group === 'loc' && next.group === 'loc') {
+        // Location segments (dir/branch) merge: plain colored chevron, no band.
+        out += bg(next.bg) + fg(s.bg) + GLYPH.sep;
+      } else {
+        // Black band: current color points into black, then black into next.
+        out += bg(DARK_SEP) + fg(s.bg) + GLYPH.sep;
+        out += bg(next.bg) + fg(DARK_SEP) + GLYPH.sep;
+      }
     }
   }
   out += DEFBG + fg(segs[segs.length - 1].bg) + GLYPH.rightCap + RESET;
