@@ -15,8 +15,8 @@ Elements:
 - `7d` — 7d rate-limit quota gauge
 - `dir` — current directory name
 - `branch` — current git branch (omitted outside a repo)
-- `status` — Claude service status (status.claude.com): a colored mark + label — green
-  when operational, yellow/orange/red/blue by incident severity — that is a
+- `status` — Claude service status (status.claude.com): a colored heartbeat mark
+  + label shown **only during an incident** (hidden when operational), a
   clickable link to the status page
 - `gap` — splitter: elements after it are right-aligned to the terminal's right
   edge (e.g. `dir branch gap ctx 5h 7d`)

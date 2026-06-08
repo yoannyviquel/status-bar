@@ -236,12 +236,12 @@ const STATUS_LABEL = {
   maintenance: 'maintenance',
 };
 
-// A colored dot, clickable (OSC 8 hyperlink) to status.claude.com. Like the
-// other elements it shows whenever it is enabled; it is only dropped when there
-// is no usable data yet (cache missing or too stale to trust).
+// A colored health mark, clickable (OSC 8 hyperlink) to status.claude.com. It is
+// a problem-only signal: shown only when there is an incident — dropped when all
+// systems are operational, and when there is no usable data (cache missing/stale).
 function statusSegment() {
   const c = readStatusCache();
-  if (!c) return null;
+  if (!c || c.indicator === 'none') return null;
   const bgc = STATUS_BG[c.indicator] || STATUS_UNKNOWN_BG;
   const dot = cp(0xf21e); // nf-fa-heartbeat — service-health pulse glyph (Nerd Font)
   const label = STATUS_LABEL[c.indicator] || 'unknown';
