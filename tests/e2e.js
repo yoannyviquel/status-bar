@@ -92,7 +92,7 @@ function run(config, d, { columns, statusCache } = {}) {
 
 // Status cache helpers.
 const DOT = String.fromCodePoint(0x273b); // ✻ the status mark glyph
-const freshCache = (indicator) => ({ indicator, description: '', fetchedAt: Date.now() });
+const freshCache = (indicator, description = '') => ({ indicator, description, fetchedAt: Date.now() });
 const staleCache = (indicator) => ({ indicator, description: '', fetchedAt: Date.now() - 60 * 60 * 1000 });
 
 const els = (...types) => ({ baseCommand: '', elements: types.map((type) => ({ type })) });
@@ -236,20 +236,22 @@ test('12. invariants across subsets — caps + sep formula', () => {
   }
 });
 
-test('13. status operational (none) — green dot shown', () => {
-  const out = run(els('status'), data({ ctx: 20 }), { statusCache: freshCache('none') });
+test('13. status operational (none) — green dot + label shown', () => {
+  const out = run(els('status'), data({ ctx: 20 }), { statusCache: freshCache('none', 'All Systems Operational') });
   startsAndEndsCapped(out);
   assert.strictEqual(count(out, SEP), 0, 'single segment');
   assert.ok(strip(out).includes(DOT), 'shows the status dot');
+  assert.ok(strip(out).includes('All Systems Operational'), 'shows the status label');
   assert.ok(out.includes('48;2;0;150;0'), 'operational => green background');
   assert.ok(out.includes('\x1b]8;;https://status.claude.com/'), 'dot is an OSC 8 hyperlink');
 });
 
-test('14. status incident (critical) — red dot, capped, no text', () => {
-  const out = run(els('status'), data({ ctx: 20 }), { statusCache: freshCache('critical') });
+test('14. status incident (critical) — red dot + label, capped', () => {
+  const out = run(els('status'), data({ ctx: 20 }), { statusCache: freshCache('critical', 'Partial Outage') });
   startsAndEndsCapped(out);
   assert.strictEqual(count(out, SEP), 0, 'single segment');
   assert.ok(strip(out).includes(DOT), 'shows the status dot');
+  assert.ok(strip(out).includes('Partial Outage'), 'shows the status label');
   assert.ok(out.includes('48;2;180;0;0'), 'critical => red background');
   assert.ok(out.includes('\x1b]8;;https://status.claude.com/'), 'dot is an OSC 8 hyperlink');
 });
