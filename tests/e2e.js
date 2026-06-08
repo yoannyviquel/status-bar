@@ -241,7 +241,7 @@ test('13. status operational (none) — green dot + label shown', () => {
   startsAndEndsCapped(out);
   assert.strictEqual(count(out, SEP), 0, 'single segment');
   assert.ok(strip(out).includes(DOT), 'shows the status dot');
-  assert.ok(strip(out).includes('All Systems Operational'), 'shows the status label');
+  assert.ok(strip(out).includes('operational'), 'shows the short lowercase label');
   assert.ok(out.includes('48;2;0;150;0'), 'operational => green background');
   assert.ok(out.includes('\x1b]8;;https://status.claude.com/'), 'dot is an OSC 8 hyperlink');
 });
@@ -251,7 +251,7 @@ test('14. status incident (critical) — red dot + label, capped', () => {
   startsAndEndsCapped(out);
   assert.strictEqual(count(out, SEP), 0, 'single segment');
   assert.ok(strip(out).includes(DOT), 'shows the status dot');
-  assert.ok(strip(out).includes('Partial Outage'), 'shows the status label');
+  assert.ok(strip(out).includes('critical'), 'shows the short lowercase label');
   assert.ok(out.includes('48;2;180;0;0'), 'critical => red background');
   assert.ok(out.includes('\x1b]8;;https://status.claude.com/'), 'dot is an OSC 8 hyperlink');
 });

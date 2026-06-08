@@ -227,6 +227,14 @@ const STATUS_BG = {
   maintenance: [0, 120, 200], // blue
 };
 const STATUS_UNKNOWN_BG = [100, 100, 100]; // grey
+// Short, lowercase label per indicator (not the long statuspage description).
+const STATUS_LABEL = {
+  none: 'operational',
+  minor: 'minor',
+  major: 'major',
+  critical: 'critical',
+  maintenance: 'maintenance',
+};
 
 // A colored dot, clickable (OSC 8 hyperlink) to status.claude.com. Like the
 // other elements it shows whenever it is enabled; it is only dropped when there
@@ -236,8 +244,9 @@ function statusSegment() {
   if (!c) return null;
   const bgc = STATUS_BG[c.indicator] || STATUS_UNKNOWN_BG;
   const dot = cp(0x273b); // ✻ teardrop-spoked asterisk — sunburst echoing the Claude mark (plain Unicode, no Nerd Font needed)
-  const label = has(c.description) ? ` ${c.description}` : '';
-  const link = `\x1b]8;;${STATUS_URL}\x07${dot}${label}\x1b]8;;\x07`;
+  const label = STATUS_LABEL[c.indicator] || 'unknown';
+  // OSC 8 hyperlink (ST-terminated) to the status page; clickable where the terminal supports it.
+  const link = `\x1b]8;;${STATUS_URL}\x1b\\${dot} ${label}\x1b]8;;\x1b\\`;
   return { bg: bgc, fg: GAUGE_FG, text: link };
 }
 
