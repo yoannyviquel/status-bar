@@ -167,7 +167,11 @@ function indicators(d, elements) {
   if (!right) return left;
   const cols = parseInt(process.env.COLUMNS || '', 10);
   const pad = cols ? cols - visW(left) - visW(right) - EDGE_RESERVE : 0;
-  if (pad < 1) return left ? left + '  ' + right : right;
+  // Screen too small to right-align (pad <= 0, or COLUMNS unknown): drop the gap and
+  // render ONE unified strip from all segments. The two sides become flush — the last
+  // left segment (branch) flows into the first right segment (model) via the normal
+  // `loc` merge chevron — instead of two split strips with their own caps.
+  if (pad < 1) return powerline([...lSegs, ...rSegs]);
   return left + ' '.repeat(pad) + right;
 }
 
@@ -240,7 +244,10 @@ function dirSegment(d) {
   const root = gitRoot(cwd);
   const base = root || String(cwd);
   const name = path.basename(base.replace(/[\\/]+$/, '')) || String(cwd);
-  return { ...SEG.dir, glyph: GLYPH.folder, label: name, family: 'loc' };
+  // Clickable: inside a repo -> the remote's web URL; otherwise (or if no remote)
+  // -> the directory in the OS file explorer (file:// URL).
+  const link = (root && gitRemoteUrl(root)) || fileUrl(base);
+  return { ...SEG.dir, glyph: GLYPH.folder, label: name, family: 'loc', link };
 }
 
 function branchSegment(d) {
@@ -270,19 +277,21 @@ const STATUS_LABEL = {
   maintenance: 'maintenance',
 };
 
-// A colored health mark, clickable (OSC 8 hyperlink) to status.claude.com. It is
-// a problem-only signal: shown only when there is an incident — dropped when all
-// systems are operational, and when there is no usable data (cache missing/stale).
+// A colored health mark. It is a problem-only signal: shown only when there is an
+// incident — dropped when all systems are operational, and when there is no usable
+// data (cache missing/stale). `mergeNext` so it blends into its neighbours with a
+// plain colored chevron (no wide black band), letting it sit flush after `model`.
+// Clickable (OSC 8) to status.claude.com via the `link` field — the URL bytes are
+// invisible and visW() strips OSC 8, so the layout math stays exact.
 function statusSegment() {
   const c = readStatusCache();
   if (!c || c.indicator === 'none') return null;
   const bgc = STATUS_BG[c.indicator] || STATUS_UNKNOWN_BG;
   const dot = cp(0xf21e); // nf-fa-heartbeat — service-health pulse glyph (Nerd Font)
-  const label = STATUS_LABEL[c.indicator] || 'unknown';
-  // OSC 8 hyperlink (ST-terminated) to the status page; clickable where the terminal supports it.
-  const link = `\x1b]8;;${STATUS_URL}\x1b\\${dot} ${label}\x1b]8;;\x1b\\`;
-  // Pre-formatted text (OSC 8 hyperlink): renderText returns it verbatim.
-  return { bg: bgc, fg: GAUGE_FG, text: link, family: 'status' };
+  // Show the statuspage `description` (user-facing impact, e.g. "Partially Degraded
+  // Service") rather than the bare severity word; fall back to the indicator label.
+  const label = (c.description || STATUS_LABEL[c.indicator] || 'unknown').toLowerCase();
+  return { bg: bgc, fg: GAUGE_FG, glyph: dot, label, family: 'status', mergeNext: true, link: STATUS_URL };
 }
 
 // Read + validate the status cache. Null if absent, malformed, or older than the
@@ -361,7 +370,11 @@ function renderText(seg) {
   const parts = [];
   if (has(seg.value)) parts.push(seg.value + (seg.unit || ''));
   if (has(seg.label)) parts.push(seg.label);
-  return parts.length ? `${seg.glyph} ${parts.join(' ')}` : seg.glyph;
+  const body = parts.length ? `${seg.glyph} ${parts.join(' ')}` : seg.glyph;
+  // `link`: wrap the visible body in an OSC 8 hyperlink (ST-terminated) so the
+  // segment is clickable where the terminal supports it. The URL bytes are
+  // invisible — visW() strips OSC 8, so layout math is unaffected.
+  return seg.link ? `\x1b]8;;${seg.link}\x1b\\${body}\x1b]8;;\x1b\\` : body;
 }
 
 // Separator style between adjacent segments a -> b (see FAMILY traits):
@@ -410,6 +423,31 @@ function gitRoot(start) {
     }
   } catch { /* ignore */ }
   return '';
+}
+
+// --- clickable links -------------------------------------------------------
+// Web URL of a repo's origin remote, parsed from <root>/.git/config. Converts
+// scp-style ssh (git@host:owner/repo) and ssh:// URLs to https and drops a
+// trailing .git so the link opens in a browser. '' if no usable remote.
+function gitRemoteUrl(root) {
+  try {
+    const cfg = fs.readFileSync(path.join(root, '.git', 'config'), 'utf8');
+    const m = /\[remote "origin"\][^[]*?\burl\s*=\s*([^\r\n]+)/.exec(cfg);
+    if (!m) return '';
+    let url = m[1].trim();
+    if (!url) return '';
+    const scp = /^[\w.-]+@([\w.-]+):(.+)$/.exec(url); // git@host:owner/repo(.git)
+    if (scp) url = `https://${scp[1]}/${scp[2]}`;
+    else url = url.replace(/^ssh:\/\/(?:[^@/]+@)?/, 'https://').replace(/^git:\/\//, 'https://');
+    return /^https?:\/\//.test(url) ? url.replace(/\.git$/, '') : '';
+  } catch { return ''; }
+}
+
+// file:// URL to reveal a path in the OS file explorer. Windows "C:\x" -> "file:///C:/x".
+function fileUrl(p) {
+  let abs = path.resolve(String(p)).replace(/\\/g, '/');
+  if (!abs.startsWith('/')) abs = '/' + abs; // drive-letter paths gain the leading slash
+  return 'file://' + encodeURI(abs);
 }
 
 // --- git branch (no spawn) -------------------------------------------------
