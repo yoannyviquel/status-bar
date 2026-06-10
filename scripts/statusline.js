@@ -66,10 +66,10 @@ const LABELS = { ctx: 'ctx', fiveHour: ARROW + '5h', sevenDay: ARROW + '7j' };
 const GAUGE_FG = [255, 255, 255];
 // Dark band inserted between every segment for a clean, homogeneous separator.
 const DARK_SEP = [12, 12, 12];
-// dir / branch: light backgrounds, dark text.
+// dir / branch: dark grey backgrounds, white text.
 const SEG = {
-  dir: { bg: [220, 220, 220], fg: [40, 40, 40] },
-  branch: { bg: [180, 180, 180], fg: [40, 40, 40] },
+  dir: { bg: [60, 60, 60], fg: [255, 255, 255] },
+  branch: { bg: [40, 40, 40], fg: [255, 255, 255] },
   // model: Claude clay/orange background, white text.
   model: { bg: [217, 119, 87], fg: [255, 255, 255] },
 };
