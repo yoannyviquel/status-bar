@@ -141,26 +141,27 @@ test('2. dir+branch only — 1 plain chevron, no black band', () => {
   assert.ok(strip(out).includes('feature/x'), 'shows branch');
 });
 
-test('3. three gauges (ctx 5h 7d) — 4 seps, black band present', () => {
+test('3. three gauges (ctx 5h 7d) — 2 merge chevrons, no black band', () => {
   const out = run(els('ctx', '5h', '7d'), full());
   startsAndEndsCapped(out);
-  assert.strictEqual(count(out, SEP), 4, '2 chevrons per gauge transition x2 = 4');
-  assert.ok(out.includes(DARK_BG), 'gauge transitions use the black band');
+  assert.strictEqual(count(out, SEP), 2, 'gauges merge: 1 colored chevron per transition x2 = 2');
+  assert.ok(!out.includes(DARK_BG), 'same-gamme gauges merge — no black band');
 });
 
-test('4. all five, no gap (ctx 5h 7d dir branch) — 7 seps', () => {
+test('4. all five, no gap (ctx 5h 7d dir branch) — 5 seps', () => {
   const out = run(els('ctx', '5h', '7d', 'dir', 'branch'), full(gitDir('main')));
   startsAndEndsCapped(out);
-  // ctx-5h(2) 5h-7d(2) 7d-dir(2) dir-branch(1) = 7
-  assert.strictEqual(count(out, SEP), 7);
+  // ctx-5h(1) 5h-7d(1) 7d-dir(2 cross-family band) dir-branch(1) = 5
+  assert.strictEqual(count(out, SEP), 5);
+  assert.ok(out.includes(DARK_BG), 'the gauge->loc transition keeps the black band');
 });
 
-test('5. order dir branch ctx 5h 7d — 7 seps, first transition merges', () => {
+test('5. order dir branch ctx 5h 7d — 5 seps, first transition merges', () => {
   const g = gitDir('main');
   const out = run(els('dir', 'branch', 'ctx', '5h', '7d'), full(g));
   startsAndEndsCapped(out);
-  // dir-branch(1) branch-ctx(2) ctx-5h(2) 5h-7d(2) = 7
-  assert.strictEqual(count(out, SEP), 7);
+  // dir-branch(1) branch-ctx(2 cross-family band) ctx-5h(1) 5h-7d(1) = 5
+  assert.strictEqual(count(out, SEP), 5);
   // the dir->branch boundary is a single plain chevron: between the two location
   // bgs (220 then 180) there must be no black band before the branch segment.
   const vis = strip(out);
@@ -172,7 +173,7 @@ test('5. order dir branch ctx 5h 7d — 7 seps, first transition merges', () => 
 test('6. gap right-align (dir branch gap ctx 5h 7d, COLUMNS=120)', () => {
   const out = run(els('dir', 'branch', 'gap', 'ctx', '5h', '7d'), full(gitDir('main')), { columns: 120 });
   startsAndEndsCapped(out, { strips: 2 }); // two strips => 2 caps each side
-  assert.strictEqual(count(out, SEP), 1 + 4, 'left strip 1 + right strip 4');
+  assert.strictEqual(count(out, SEP), 1 + 2, 'left strip 1 (dir-branch) + right strip 2 (gauge merges)');
   assert.strictEqual(visW(out), 120 - 4, 'visible width = COLUMNS - EDGE_RESERVE');
   // a run of padding spaces separates the two strips
   assert.ok(/ {5,}/.test(strip(out)), 'padding spaces between strips');
@@ -202,7 +203,7 @@ test('9. gap with empty right side — left only, no trailing pad', () => {
 test('10. legacy config (mode only) — falls back to 3 gauges', () => {
   const out = run({ baseCommand: '', mode: 'medium' }, full());
   startsAndEndsCapped(out);
-  assert.strictEqual(count(out, SEP), 4, 'ctx 5h 7d fallback => 4 seps');
+  assert.strictEqual(count(out, SEP), 2, 'ctx 5h 7d fallback => 2 merge seps');
 });
 
 test('11. everything absent — empty output, no orphan cap', () => {
@@ -212,11 +213,15 @@ test('11. everything absent — empty output, no orphan cap', () => {
 });
 
 test('12. invariants across subsets — caps + sep formula', () => {
+  // separator count per transition: same family => 1 (merge chevron),
+  // different families => 2 (black band). gauge = ctx/5h/7d, loc = dir/branch.
+  const GAUGE = new Set(['ctx', '5h', '7d']);
   const LOC = new Set(['dir', 'branch']);
+  const fam = (t) => (GAUGE.has(t) ? 'gauge' : LOC.has(t) ? 'loc' : t);
   const sepFor = (types) => {
     let n = 0;
     for (let i = 0; i < types.length - 1; i++) {
-      n += LOC.has(types[i]) && LOC.has(types[i + 1]) ? 1 : 2;
+      n += fam(types[i]) === fam(types[i + 1]) ? 1 : 2;
     }
     return n;
   };

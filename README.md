@@ -6,6 +6,7 @@ configurable segments (rounded caps at both ends, filled chevrons between):
 - `ctx` — context-window usage gauge (segment background colored green→red by the %)
 - `5h` — 5h rate-limit quota gauge
 - `7d` — 7d rate-limit quota gauge
+- `model` — current model name (microchip glyph, Claude clay/orange background)
 - `dir` — current directory name (folder glyph)
 - `branch` — current git branch (branch glyph; omitted outside a repo)
 - `status` — Claude service status ([status.claude.com](https://status.claude.com/)): a colored heartbeat mark + label shown **only during an incident** (hidden when all systems are operational), clickable to open the status page
@@ -19,12 +20,18 @@ Each gauge segment shows `NN%` followed by its label and is tinted by its usage
 level (green = low, red = high). The `5h` / `7d` labels are the **dynamic reset
 time** reported by Claude Code (`→1am` same-day, `→Jun12` otherwise); they fall
 back to `→5h` / `→7j` when no timestamp is available. `ctx` shows just `NN%`
-(no label). `dir` / `branch` use light backgrounds with dark text. `status` is a
+(no label). `model` / `dir` / `branch` use solid backgrounds with white text. `status` is a
 colored heartbeat mark (`nf-fa-heartbeat`) + short label (`minor`/`major`/
 `critical`/`maintenance`) shown only when status.claude.com reports an incident
 (hidden when operational); it is fetched in the background into a small cache
 (`~/.claude/claude-status.cache.json`) so the render never blocks on the network,
 and the segment is an OSC 8 hyperlink to the status page.
+
+**Separators** are decided per segment *family*: same-gamme gauges (`ctx`/`5h`/`7d`)
+flow into each other via a colored chevron, location segments (`model`/`dir`/`branch`)
+merge the same way, `model` flows its chevron into the gauge on its right, and two
+differing families are split by a black band. These rules live in the `FAMILY`
+trait table in `scripts/statusline.js`.
 
 **Requirements:** a **truecolor** (24-bit) terminal, `node` on PATH, and a
 **Nerd Font** for the powerline glyphs (caps, chevrons, folder/branch icons) —
@@ -60,11 +67,18 @@ ships a one-shot installer instead of patching your settings silently.
    It copies `statusline.js` to `~/.claude/gradient-statusline.js` and points
    `statusLine` in your `~/.claude/settings.json` at it. Any existing config is
    backed up to `settings.json.bak`, and a previously configured status line is
-   preserved as a prefix (additive). A fresh install enables all five elements.
+   preserved as a prefix (additive). A fresh install enables all elements.
 3. Restart Claude Code (or open a new session).
 
 The installed script lives at `~/.claude/gradient-statusline.js` — independent of
 the plugin, so it keeps working if the plugin is later updated or removed.
+
+**Updates are automatic.** A `SessionStart` hook (`scripts/deploy.js`) re-copies
+the script into `~/.claude/gradient-statusline.js` on each session start whenever
+an install already exists and the source changed — so a plugin update reaches you
+without re-running `/install-statusline`. It never creates an install (the first
+`/install-statusline` is still what wires up settings + config) and never writes
+when nothing changed.
 
 ## Configure
 
@@ -86,7 +100,7 @@ Running with no argument prints the current configuration.
 ## Tests
 
 End-to-end tests (zero dependency — just `node`) cover element on/off
-combinations, the intermediate separators (black band vs merged dir/branch),
+combinations, the per-family separators (colored chevron vs black band),
 rounded caps at both ends, right-align via `gap`, and graceful drops
 (missing data, non-git, legacy config):
 
@@ -103,11 +117,13 @@ Remove the `statusLine` block from `~/.claude/settings.json` (or restore
 
 Constants at the top of `scripts/statusline.js`:
 
-- `GLYPH` — folder / branch icons and the powerline caps & chevron.
+- `GLYPH` — folder / branch / model icons and the powerline caps & chevron.
 - `LABELS` — gauge labels (`ctx`, `→5h`, `→7j`).
-- `GAUGE_FG` — gauge text color; `SEG` — `dir` / `branch` segment colors.
+- `GAUGE_FG` — gauge text color; `SEG` — `model` / `dir` / `branch` segment colors.
+- `FAMILY` — per-family separator style (`merge` / `band`) and `mergeNext`.
 - `grad`'s `m=170` — color brightness ceiling (lower = darker).
 
-> `~/.claude/gradient-statusline.js` is a copy and gets overwritten on reinstall.
-> To persist changes, edit the source `scripts/statusline.js` and re-run
-> `/install-statusline`.
+> `~/.claude/gradient-statusline.js` is a copy: it is overwritten on reinstall and
+> re-synced from the source on every session start (see the `SessionStart` hook).
+> To persist changes, edit the source `scripts/statusline.js` — the next session
+> redeploys it automatically (no `/install-statusline` needed).
