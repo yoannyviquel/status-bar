@@ -54,7 +54,7 @@ function gitDir(branch) {
 function plainDir() { return tmpdir('sb-plain-'); }
 
 // Build a statusLine JSON.
-function data({ cwd, ctx, fiveHour, fiveReset, sevenDay, sevenReset } = {}) {
+function data({ cwd, ctx, fiveHour, fiveReset, sevenDay, sevenReset, sessionId, pr } = {}) {
   const d = {};
   if (cwd) d.workspace = { current_dir: cwd };
   if (ctx !== undefined) d.context_window = { used_percentage: ctx };
@@ -62,6 +62,8 @@ function data({ cwd, ctx, fiveHour, fiveReset, sevenDay, sevenReset } = {}) {
   if (fiveHour !== undefined) rl.five_hour = { used_percentage: fiveHour, resets_at: fiveReset };
   if (sevenDay !== undefined) rl.seven_day = { used_percentage: sevenDay, resets_at: sevenReset };
   if (Object.keys(rl).length) d.rate_limits = rl;
+  if (sessionId) d.session_id = sessionId;      // session-scoped PR store key
+  if (pr) d.pr = pr;                            // Claude Code native current-branch PR
   return d;
 }
 
@@ -69,11 +71,17 @@ function data({ cwd, ctx, fiveHour, fiveReset, sevenDay, sevenReset } = {}) {
 // cache file. Whenever the config includes the `status` element we also drop a
 // fresh lock file so the script's background refresh never spawns a real network
 // fetch — these tests stay fully offline.
-function run(config, d, { columns, statusCache } = {}) {
+function run(config, d, { columns, statusCache, prStore } = {}) {
   const home = homeWith(config);
   const claudeDir = path.join(home, '.claude');
   if (statusCache !== undefined) {
     fs.writeFileSync(path.join(claudeDir, 'claude-status.cache.json'), JSON.stringify(statusCache), 'utf8');
+  }
+  if (prStore) { // seed the session PR cache: { sid, prs:[...] }
+    const dir = path.join(claudeDir, 'status-line-prs');
+    fs.mkdirSync(dir, { recursive: true });
+    const safe = String(prStore.sid).replace(/[^A-Za-z0-9_-]/g, '_');
+    fs.writeFileSync(path.join(dir, safe + '.json'), JSON.stringify({ updatedAt: Date.now(), prs: prStore.prs }), 'utf8');
   }
   const hasStatus = Array.isArray(config.elements) && config.elements.some((e) => e && e.type === 'status');
   if (hasStatus) {
@@ -92,6 +100,8 @@ function run(config, d, { columns, statusCache } = {}) {
 
 // Status cache helpers.
 const DOT = String.fromCodePoint(0xf21e); // nf-fa-heartbeat — the status mark glyph
+const PR_OPEN = String.fromCodePoint(0xea64);  // git-pull-request glyph (open/active)
+const PR_MERGE = String.fromCodePoint(0xea84); // git-merge glyph (completed/merged)
 const freshCache = (indicator, description = '') => ({ indicator, description, fetchedAt: Date.now() });
 const staleCache = (indicator) => ({ indicator, description: '', fetchedAt: Date.now() - 60 * 60 * 1000 });
 
@@ -246,12 +256,12 @@ test('13. status operational (none) — hidden (problem-only signal)', () => {
   assert.strictEqual(out, '', 'no segment when all systems operational');
 });
 
-test('14. status incident (critical) — red dot + label, capped', () => {
+test('14. status incident (critical) — red dot + impact label, capped', () => {
   const out = run(els('status'), data({ ctx: 20 }), { statusCache: freshCache('critical', 'Partial Outage') });
   startsAndEndsCapped(out);
   assert.strictEqual(count(out, SEP), 0, 'single segment');
   assert.ok(strip(out).includes(DOT), 'shows the status dot');
-  assert.ok(strip(out).includes('critical'), 'shows the short lowercase label');
+  assert.ok(strip(out).includes('partial outage'), 'shows the statuspage description, lowercased');
   assert.ok(out.includes('48;2;180;0;0'), 'critical => red background');
   assert.ok(out.includes('\x1b]8;;https://status.claude.com/'), 'dot is an OSC 8 hyperlink');
 });
@@ -266,6 +276,111 @@ test('16. status with gap — width correct despite invisible hyperlink', () => 
   startsAndEndsCapped(out, { strips: 2 });
   assert.strictEqual(visW(out), 120 - 4, 'OSC 8 URL must not count toward width');
   assert.ok(strip(out).includes(DOT), 'shows the status dot in the right strip');
+});
+
+// --- pr element (second status line) ---------------------------------------
+const TFS_PR = (n) => `http://tfs.cdbdx.biz:8080/DefaultCollection/Proj/_git/Repo/pullrequest/${n}`;
+
+test('17. pr second line — lists session PRs, clickable, status colors', () => {
+  const sid = 'sess-abc';
+  const out = run(els('pr'), data({ sessionId: sid }), {
+    columns: 200,
+    prStore: { sid, prs: [
+      { number: 42, url: TFS_PR(42), status: 'active' },
+      { number: 43, url: TFS_PR(43), status: 'completed' },
+    ] },
+  });
+  startsAndEndsCapped(out);                              // single strip (no first-row elements)
+  assert.ok(!out.includes('\n'), 'only the pr row when no first-row elements');
+  assert.strictEqual(count(out, SEP), 1, 'two PR segments -> one merge chevron');
+  assert.ok(!out.includes(DARK_BG), 'PR segments merge — no black band');
+  assert.ok(strip(out).includes('#42') && strip(out).includes('#43'), 'shows both PR numbers');
+  assert.ok(out.includes('\x1b]8;;' + TFS_PR(42)) && out.includes('\x1b]8;;' + TFS_PR(43)), 'each PR is an OSC 8 link');
+  assert.ok(strip(out).includes(PR_OPEN), 'active PR uses the git-pull-request glyph');
+  assert.ok(strip(out).includes(PR_MERGE), 'completed PR uses the git-merge glyph');
+  assert.ok(out.includes('48;2;120;70;160'), 'completed => purple background');
+});
+
+test('18. pr with a first-row element — two rows', () => {
+  const sid = 'sess-2';
+  const out = run(els('ctx', 'pr'), data({ ctx: 20, sessionId: sid }), {
+    columns: 200,
+    prStore: { sid, prs: [{ number: 7, url: TFS_PR(7), status: 'active' }] },
+  });
+  const lines = out.split('\n');
+  assert.strictEqual(lines.length, 2, 'first row + pr row');
+  assert.ok(strip(lines[0]).includes('20%'), 'row 1 = ctx gauge');
+  assert.ok(strip(lines[1]).includes('#7'), 'row 2 = pr list');
+});
+
+test('19. pr enabled but no PRs — no second row', () => {
+  const out = run(els('ctx', 'pr'), data({ ctx: 30, sessionId: 'sess-3' }), { columns: 200 });
+  assert.ok(!out.includes('\n'), 'no pr row when there are no PRs');
+  assert.ok(strip(out).includes('30%'));
+});
+
+test('20. native current-branch PR (d.pr) is listed', () => {
+  const out = run(els('pr'), data({
+    sessionId: 'sess-4',
+    pr: { number: 9, url: 'https://github.com/o/r/pull/9', review_state: 'approved' },
+  }), { columns: 200 });
+  startsAndEndsCapped(out);
+  assert.ok(strip(out).includes('#9'), 'shows the native PR number');
+  assert.ok(out.includes('\x1b]8;;https://github.com/o/r/pull/9'), 'native PR is clickable');
+  assert.ok(out.includes('48;2;40;140;60'), 'approved => green background');
+});
+
+// --- pr-capture hook -------------------------------------------------------
+const CAP = path.join(__dirname, '..', 'scripts', 'pr-capture.js');
+function capHome() {
+  const home = tmpdir('sb-cap-');
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'gradient-statusline.config.json'), JSON.stringify(els('pr')), 'utf8');
+  return home;
+}
+function capture(home, ev) {
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  return cpmod.spawnSync(process.execPath, [CAP], { input: JSON.stringify(ev), env, encoding: 'utf8' });
+}
+const prFile = (home, sid) => path.join(home, '.claude', 'status-line-prs', sid + '.json');
+
+test('21. pr-capture writes + dedups the session store', () => {
+  const home = capHome();
+  const ev = {
+    session_id: 'cap-1',
+    tool_name: 'mcp__plugin_microsoft-tfs_tfs__tfs_createpullrequest',
+    tool_response: 'PR created successfully! Link: ' + TFS_PR(77),
+  };
+  assert.strictEqual(capture(home, ev).status, 0, 'exit 0');
+  let store = JSON.parse(fs.readFileSync(prFile(home, 'cap-1'), 'utf8'));
+  assert.strictEqual(store.prs.length, 1, 'one PR captured');
+  assert.strictEqual(store.prs[0].number, 77, 'parsed the PR id');
+  capture(home, ev); // identical event again
+  store = JSON.parse(fs.readFileSync(prFile(home, 'cap-1'), 'utf8'));
+  assert.strictEqual(store.prs.length, 1, 'dedup by URL');
+});
+
+test('22. pr-capture ignores a viewed (non-created) PR', () => {
+  const home = capHome();
+  capture(home, { session_id: 'cap-2', tool_name: 'tfs_getpullrequest', tool_response: 'Title: foo  Link: ' + TFS_PR(5) + '  Status: active' });
+  assert.ok(!fs.existsSync(prFile(home, 'cap-2')), 'no capture for a merely viewed PR');
+});
+
+test('23. pr-capture --purge removes the session file', () => {
+  const home = capHome();
+  capture(home, { session_id: 'cap-3', tool_name: 'x_create_pull_request', tool_response: 'created ' + TFS_PR(8) });
+  assert.ok(fs.existsSync(prFile(home, 'cap-3')), 'captured before purge');
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  cpmod.spawnSync(process.execPath, [CAP, '--purge'], { input: JSON.stringify({ session_id: 'cap-3' }), env, encoding: 'utf8' });
+  assert.ok(!fs.existsSync(prFile(home, 'cap-3')), 'purged on SessionEnd');
+});
+
+test('24. pr-capture is a no-op when the pr element is disabled', () => {
+  const home = tmpdir('sb-cap-off-');
+  fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude', 'gradient-statusline.config.json'), JSON.stringify(els('ctx')), 'utf8');
+  capture(home, { session_id: 'cap-4', tool_name: 'x_create_pull_request', tool_response: 'created ' + TFS_PR(1) });
+  assert.ok(!fs.existsSync(prFile(home, 'cap-4')), 'disabled users pay nothing');
 });
 
 // --- run -------------------------------------------------------------------

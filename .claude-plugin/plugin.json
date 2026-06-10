@@ -1,7 +1,7 @@
 {
   "name": "status-line",
-  "version": "1.0.7",
-  "description": "Additive status line with green-to-red gradient indicators for context window and 5h / 7d rate-limit quotas. Single-process (node only). Configurable ordered elements (ctx / 5h / 7d / model / dir / branch / gap), switchable via /statusline-mode. A Nerd Font is recommended for the powerline glyphs. Run /install-statusline once to enable.",
+  "version": "1.0.8",
+  "description": "Additive status line with green-to-red gradient indicators for context window and 5h / 7d rate-limit quotas. Single-process (node only). Configurable ordered elements (ctx / 5h / 7d / model / dir / branch / status / pr / gap), switchable via /statusline-mode; `pr` lists the session's pull requests (clickable) on a second row. A Nerd Font is recommended for the powerline glyphs. Run /install-statusline once to enable.",
   "author": {
     "name": "Yoann Yviquel"
   },
@@ -14,6 +14,30 @@
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/deploy.js"]
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/pr-capture.js"]
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/pr-capture.js", "--purge"]
           }
         ]
       }

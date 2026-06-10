@@ -13,7 +13,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const ALL_TYPES = ['ctx', '5h', '7d', 'model', 'dir', 'branch', 'status', 'gap'];
+const ALL_TYPES = ['ctx', '5h', '7d', 'model', 'dir', 'branch', 'status', 'pr', 'gap'];
 // Legacy size suffixes / mode words are accepted and ignored (the look is fixed).
 const LEGACY_MODES = ['full', 'medium', 'compact', 'large'];
 

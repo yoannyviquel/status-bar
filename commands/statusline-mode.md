@@ -18,6 +18,10 @@ Elements:
 - `status` — Claude service status (status.claude.com): a colored heartbeat mark
   + label shown **only during an incident** (hidden when operational), a
   clickable link to the status page
+- `pr` — the session's pull requests, rendered on a **second row**: one clickable
+  mini-segment per PR (status glyph + `#id`, colored by status). Captured
+  MCP-agnostically as PRs are created; shown only when there is at least one.
+  Its position among the other (first-row) elements does not matter.
 - `gap` — splitter: elements after it are right-aligned to the terminal's right
   edge (e.g. `dir branch gap ctx 5h 7d`)
 
@@ -33,11 +37,12 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/set-mode.js" $ARGUMENTS
 
 1. **Pick the elements** with **AskUserQuestion** (`multiSelect: true`, header
    `Elements`, question "Which elements to show?"): options `ctx`, `5h`, `7d`,
-   `dir`, `branch`, `status`.
+   `model`, `dir`, `branch`, `status`, `pr`.
 
 2. **Build the element list** in this fixed display order — `ctx`, `5h`, `7d`,
-   `dir`, `branch`, `status` — keeping only the selected ones. (Finer ordering is possible
-   by passing the elements directly as `$ARGUMENTS`, in any order.)
+   `model`, `dir`, `branch`, `status`, `pr` — keeping only the selected ones.
+   (`pr` is a second-row list, so its position is irrelevant. Finer ordering is
+   possible by passing the elements directly as `$ARGUMENTS`, in any order.)
 
 3. **Apply** by running, and report the output:
 

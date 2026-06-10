@@ -27,7 +27,7 @@ const os = require('os');
 const path = require('path');
 const proc = require('child_process');
 
-const ALL_TYPES = ['ctx', '5h', '7d', 'model', 'dir', 'branch', 'status', 'gap'];
+const ALL_TYPES = ['ctx', '5h', '7d', 'model', 'dir', 'branch', 'status', 'pr', 'gap'];
 
 // --- Claude service status (status.claude.com) -----------------------------
 // `status` is a colored dot that only appears when something is wrong. It is
@@ -85,6 +85,7 @@ const FAMILY = {
   gauge: { sep: 'merge' },   // gauges share the green->red gradient gamme
   loc: { sep: 'merge' },    // dir/branch/model: distinct colors, blend
   status: { sep: 'band' },
+  pr: { sep: 'merge' },     // session PR list (second line): blend per status color
 };
 const SEP_CROSS = 'band';   // between two different families
 
@@ -135,6 +136,7 @@ function loadConfig() {
 
 function render(raw) {
   const { baseCommand, elements } = loadConfig();
+  const d = safeParse(raw);
   let prefix = '';
   if (baseCommand) {
     try {
@@ -144,9 +146,16 @@ function render(raw) {
         .replace(/\s+$/, '');
     } catch { prefix = ''; }
   }
-  const ind = indicators(safeParse(raw), elements);
-  if (prefix && ind) return prefix + ' ' + ind; // space-join, matches CC layout
-  return prefix || ind;
+  const ind = indicators(d, elements);
+  const line1 = prefix && ind ? prefix + ' ' + ind : (prefix || ind); // space-join, matches CC layout
+  // `pr` is a second-line element: a clickable list of the session's pull
+  // requests on its own row below the strip (Claude Code renders each output
+  // line as a separate status row). Shown only when there are PRs to list.
+  if (elements.some((e) => e.type === 'pr')) {
+    const l2 = prLine(d);
+    if (l2) return line1 ? line1 + '\n' + l2 : l2;
+  }
+  return line1;
 }
 
 // ---------------------------------------------------------------------------
@@ -353,6 +362,87 @@ function refreshStatusCache() {
     req.on('timeout', () => { req.destroy(); done(false); });
     req.on('error', () => done(false));
   } catch { done(false); }
+}
+
+// --- session pull requests (second status line) ----------------------------
+// PRs created during the session are captured to disk by scripts/pr-capture.js
+// (a PostToolUse hook), keyed by the Claude Code `session_id` that this renderer
+// also receives on stdin. The `pr` element lists them on a second row: one
+// clickable mini-segment per PR (status glyph + "#<number>"). Render is
+// read-only — it never writes the cache.
+const SESSION_PR_DIR = () => path.join(os.homedir(), '.claude', 'status-line-prs');
+const PR_FG = [255, 255, 255];
+// Status -> { background color, glyph }. Covers Azure DevOps (active / completed /
+// abandoned), GitHub review states, and draft / approved / waiting nuances.
+const PR_STATUS = {
+  open:      { bg: [40, 110, 180], glyph: 0xea64 }, // blue   — open / active (git-pull-request)
+  draft:     { bg: [90, 90, 90],   glyph: 0xea64 }, // grey   — draft
+  waiting:   { bg: [170, 140, 0],  glyph: 0xea64 }, // amber  — waiting on author / changes requested
+  approved:  { bg: [40, 140, 60],  glyph: 0xea64 }, // green  — approved
+  completed: { bg: [120, 70, 160], glyph: 0xea84 }, // purple — merged / completed (git-merge)
+  abandoned: { bg: [80, 80, 80],   glyph: 0xea64 }, // grey   — abandoned / closed
+};
+const PR_DEFAULT = { bg: [40, 110, 180], glyph: 0xea64 };
+
+// Sanitise a session id into a filesystem-safe basename (UUIDs are already safe).
+function safeSid(sid) { return String(sid).replace(/[^A-Za-z0-9_-]/g, '_'); }
+
+// Normalise assorted status / review_state spellings to a PR_STATUS key.
+function prStatusKey(s) {
+  const v = String(s || '').toLowerCase();
+  if (/(complet|merg)/.test(v)) return 'completed';
+  if (/(abandon|closed|declin)/.test(v)) return 'abandoned';
+  if (/draft/.test(v)) return 'draft';
+  if (/approv/.test(v)) return 'approved';
+  if (/(wait|changes[_-]?requested|rejected)/.test(v)) return 'waiting';
+  if (/(active|open|review|pending)/.test(v)) return 'open';
+  return v;
+}
+
+// All PRs to show this render: the session's captured PRs plus, when present,
+// Claude Code's native current-branch PR (`d.pr`). Deduped by URL, in the order
+// they were created (captured order first).
+function readSessionPrs(d) {
+  const out = [];
+  const seen = new Set();
+  const add = (pr) => {
+    if (!pr || !has(pr.url)) return;
+    const key = String(pr.url).replace(/\/+$/, '');
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(pr);
+  };
+  try {
+    const sid = d.session_id;
+    if (has(sid)) {
+      const c = JSON.parse(fs.readFileSync(path.join(SESSION_PR_DIR(), safeSid(sid) + '.json'), 'utf8'));
+      if (c && Array.isArray(c.prs)) c.prs.forEach(add);
+    }
+  } catch { /* no captured PRs */ }
+  if (d.pr && has(d.pr.url)) add({ number: d.pr.number, url: d.pr.url, status: d.pr.review_state || 'open' });
+  return out;
+}
+
+// One PR mini-segment: status glyph + "#<number>", clickable to the PR URL.
+function prSeg(pr) {
+  const meta = PR_STATUS[prStatusKey(pr.status)] || PR_DEFAULT;
+  const label = has(pr.number) ? '#' + pr.number : 'PR';
+  return { bg: meta.bg, fg: PR_FG, glyph: cp(meta.glyph), label, family: 'pr', link: pr.url, mergeNext: true };
+}
+
+// The second status line: a powerline strip listing the session's PRs ('' when
+// none). If the strip would exceed COLUMNS, drop the overflow and append "+N".
+function prLine(d) {
+  const prs = readSessionPrs(d);
+  if (!prs.length) return '';
+  let segs = prs.map(prSeg);
+  const cols = parseInt(process.env.COLUMNS || '', 10);
+  if (cols) {
+    let extra = 0;
+    while (segs.length > 1 && visW(powerline(segs)) > cols - EDGE_RESERVE) { segs.pop(); extra++; }
+    if (extra) segs.push({ bg: [60, 60, 60], fg: PR_FG, glyph: cp(0x2026), label: '+' + extra, family: 'pr', mergeNext: true });
+  }
+  return powerline(segs);
 }
 
 // --- ANSI / powerline rendering --------------------------------------------
