@@ -82,7 +82,7 @@ const SEG = {
 // A segment may also set `mergeNext:true` to force a merge into its right
 // neighbour regardless of families (e.g. model flowing into the ctx gauge).
 const FAMILY = {
-  gauge: { sep: 'band' },   // gauges share the green->red gradient gamme
+  gauge: { sep: 'merge' },   // gauges share the green->red gradient gamme
   loc: { sep: 'merge' },    // dir/branch/model: distinct colors, blend
   status: { sep: 'band' },
 };
