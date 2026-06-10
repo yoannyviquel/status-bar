@@ -64,7 +64,7 @@ const ARROW = '→'; // "→" reset prefix
 const LABELS = { ctx: 'ctx', fiveHour: ARROW + '5h', sevenDay: ARROW + '7j' };
 // Gauge text color (on the completion-colored background).
 const GAUGE_FG = [255, 255, 255];
-// Dark band inserted between every segment for a clean, homogeneous separator.
+// Dark band inserted between same-gamme segments for a clean separation.
 const DARK_SEP = [12, 12, 12];
 // dir / branch: dark grey backgrounds, white text.
 const SEG = {
@@ -73,6 +73,20 @@ const SEG = {
   // model: Claude clay/orange background, white text.
   model: { bg: [217, 119, 87], fg: [255, 255, 255] },
 };
+
+// --- Segment behavior (declarative traits) ---------------------------------
+// Each segment carries a `family`; the separator drawn between two adjacent
+// segments is decided by `sepStyle()` from these traits (no hard-coded flags):
+//   merge -> plain colored chevron (segments blend; distinct colors)
+//   band  -> wide black double-chevron (same gamme / differing families)
+// A segment may also set `mergeNext:true` to force a merge into its right
+// neighbour regardless of families (e.g. model flowing into the ctx gauge).
+const FAMILY = {
+  gauge: { sep: 'band' },   // gauges share the green->red gradient gamme
+  loc: { sep: 'merge' },    // dir/branch/model: distinct colors, blend
+  status: { sep: 'band' },
+};
+const SEP_CROSS = 'band';   // between two different families
 
 // Background-refresh entry point: do the network work, never read stdin.
 if (process.argv.includes('--refresh-status')) {
@@ -203,8 +217,7 @@ function segmentFor(type, d) {
 function gauge(glyph, label, pct) {
   if (!has(pct)) return null;
   const p = Math.round(pct);
-  const body = label ? `${p}% ${label}` : `${p}%`;
-  return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${glyph} ${body}` };
+  return { glyph, label, value: String(p), unit: '%', bg: grad(p / 100), fg: GAUGE_FG, family: 'gauge' };
 }
 
 function modelSegment(d) {
@@ -216,7 +229,8 @@ function modelSegment(d) {
     .replace(/\s*\([^)]*context[^)]*\)\s*$/i, '')
     .replace(/\s+v?\d[\d.]*\s*$/, '')
     .trim();
-  return { ...SEG.model, group: 'loc', text: `${GLYPH.model} ${name}` };
+  // mergeNext: the orange chevron flows into the segment on its right (ctx gauge).
+  return { ...SEG.model, glyph: GLYPH.model, label: name, family: 'loc', mergeNext: true };
 }
 
 function dirSegment(d) {
@@ -226,14 +240,14 @@ function dirSegment(d) {
   const root = gitRoot(cwd);
   const base = root || String(cwd);
   const name = path.basename(base.replace(/[\\/]+$/, '')) || String(cwd);
-  return { ...SEG.dir, group: 'loc', text: `${GLYPH.folder} ${name}` };
+  return { ...SEG.dir, glyph: GLYPH.folder, label: name, family: 'loc' };
 }
 
 function branchSegment(d) {
   const cwd = d.workspace?.current_dir || d.cwd || process.cwd();
   const br = gitBranch(cwd);
   if (!br) return null;
-  return { ...SEG.branch, group: 'loc', text: `${GLYPH.branch} ${br}` };
+  return { ...SEG.branch, glyph: GLYPH.branch, label: br, family: 'loc' };
 }
 
 // --- Claude service status segment -----------------------------------------
@@ -267,7 +281,8 @@ function statusSegment() {
   const label = STATUS_LABEL[c.indicator] || 'unknown';
   // OSC 8 hyperlink (ST-terminated) to the status page; clickable where the terminal supports it.
   const link = `\x1b]8;;${STATUS_URL}\x1b\\${dot} ${label}\x1b]8;;\x1b\\`;
-  return { bg: bgc, fg: GAUGE_FG, text: link };
+  // Pre-formatted text (OSC 8 hyperlink): renderText returns it verbatim.
+  return { bg: bgc, fg: GAUGE_FG, text: link, family: 'status' };
 }
 
 // Read + validate the status cache. Null if absent, malformed, or older than the
@@ -337,17 +352,38 @@ const bg = (c) => `\x1b[48;2;${c[0]};${c[1]};${c[2]}m`;
 const DEFBG = '\x1b[49m';
 const RESET = '\x1b[0m';
 
-// Render a list of {bg,fg,text} segments as a powerline strip:
-// rounded left cap, segments with filled chevrons between, rounded right cap.
+// Serialise a structured segment into its display text. Components carry
+// glyph/label/value?/unit?; gauges render "<glyph> NN% <label>", location
+// segments "<glyph> <name>". A `text` field (status' OSC 8 link) is returned
+// verbatim. Output is byte-identical to the previous hand-assembled strings.
+function renderText(seg) {
+  if (seg.text !== undefined) return seg.text;
+  const parts = [];
+  if (has(seg.value)) parts.push(seg.value + (seg.unit || ''));
+  if (has(seg.label)) parts.push(seg.label);
+  return parts.length ? `${seg.glyph} ${parts.join(' ')}` : seg.glyph;
+}
+
+// Separator style between adjacent segments a -> b (see FAMILY traits):
+// a `mergeNext` override wins; else same family uses its declared sep; else band.
+function sepStyle(a, b) {
+  if (a.mergeNext) return 'merge';
+  if (a.family === b.family && FAMILY[a.family]) return FAMILY[a.family].sep;
+  return SEP_CROSS;
+}
+
+// Render a list of structured segments as a powerline strip:
+// rounded left cap, segments joined per sepStyle(), rounded right cap.
 function powerline(segs) {
   let out = DEFBG + fg(segs[0].bg) + GLYPH.leftCap;
   for (let i = 0; i < segs.length; i++) {
     const s = segs[i];
-    out += bg(s.bg) + fg(s.fg) + ' ' + s.text + ' ';
+    out += bg(s.bg) + fg(s.fg) + ' ' + renderText(s) + ' ';
     if (i < segs.length - 1) {
       const next = segs[i + 1];
-      if (s.group === 'loc' && next.group === 'loc') {
-        // Location segments (dir/branch) merge: plain colored chevron, no band.
+      const style = sepStyle(s, next);
+      if (style === 'merge') {
+        // Plain colored chevron: current color points into next, no band.
         out += bg(next.bg) + fg(s.bg) + GLYPH.sep;
       } else {
         // Black band: current color points into black, then black into next.
