@@ -12,7 +12,8 @@
 //   ctx / 5h / 7d : gauge segments — background colored green->red by the usage
 //                   %, text = "<label> NN%". The 5h/7d labels show the dynamic
 //                   reset given by Claude Code (e.g. "→1am", "→Jun5").
-//   dir           : current directory basename.
+//   model         : current model display name, on a Claude-orange background.
+//   dir           : current directory (git repo name if inside a repo).
 //   branch        : current git branch (if any).
 // Every active element is a powerline segment: rounded cap on the very first,
 // filled chevrons between, rounded cap on the very last.
@@ -26,7 +27,7 @@ const os = require('os');
 const path = require('path');
 const proc = require('child_process');
 
-const ALL_TYPES = ['ctx', '5h', '7d', 'dir', 'branch', 'status', 'gap'];
+const ALL_TYPES = ['ctx', '5h', '7d', 'model', 'dir', 'branch', 'status', 'gap'];
 
 // --- Claude service status (status.claude.com) -----------------------------
 // `status` is a colored dot that only appears when something is wrong. It is
@@ -56,6 +57,7 @@ const GLYPH = {
   rightThin: cp(0xe0b5), // nf-pl-right_soft_thin  outline rounded right cap
   ctx: cp(0xf1c0),       // nf-fa-database      context gauge icon
   quota: cp(0xf0e4),     // nf-fa-tachometer    quota gauge icon
+  model: cp(0xf2db),     // nf-fa-microchip     model segment icon
 };
 const ARROW = '→'; // "→" reset prefix
 // Fallback labels (used when no reset timestamp is provided).
@@ -68,6 +70,8 @@ const DARK_SEP = [12, 12, 12];
 const SEG = {
   dir: { bg: [220, 220, 220], fg: [40, 40, 40] },
   branch: { bg: [180, 180, 180], fg: [40, 40, 40] },
+  // model: Claude clay/orange background, white text.
+  model: { bg: [217, 119, 87], fg: [255, 255, 255] },
 };
 
 // Background-refresh entry point: do the network work, never read stdin.
@@ -188,6 +192,7 @@ function segmentFor(type, d) {
     const r = fmtReset(w?.resets_at, false);
     return gauge(GLYPH.quota, r ? ARROW + r : LABELS.sevenDay, w?.used_percentage);
   }
+  if (type === 'model') return modelSegment(d);
   if (type === 'dir') return dirSegment(d);
   if (type === 'branch') return branchSegment(d);
   if (type === 'status') return statusSegment();
@@ -200,6 +205,14 @@ function gauge(glyph, label, pct) {
   const p = Math.round(pct);
   const body = label ? `${p}% ${label}` : `${p}%`;
   return { kind: 'gauge', bg: grad(p / 100), fg: GAUGE_FG, text: `${glyph} ${body}` };
+}
+
+function modelSegment(d) {
+  let name = d.model?.display_name || d.model?.id;
+  if (!has(name)) return null;
+  // Drop a trailing context-size note, e.g. "Opus 4.8 (1M context)" -> "Opus 4.8".
+  name = String(name).replace(/\s*\([^)]*context[^)]*\)\s*$/i, '').trim();
+  return { ...SEG.model, group: 'loc', text: `${GLYPH.model} ${name}` };
 }
 
 function dirSegment(d) {
